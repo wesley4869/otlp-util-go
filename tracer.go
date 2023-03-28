@@ -55,8 +55,9 @@ func InitGlobalTracer(opts ...InitOption) {
 		sdktrace.WithResource(r),
 		sdktrace.WithSpanProcessor(sp),
 	)
+	global_tracer_provider = provider
 
-	otel.SetTracerProvider(provider)
+	otel.SetTracerProvider(global_tracer_provider)
 	tracer := otel.GetTracerProvider().Tracer(cfg.serviceName)
 	global_tracer = tracer
 
@@ -83,4 +84,11 @@ func WithInSecure() InitOption {
 
 func Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	return global_tracer.Start(ctx, spanName, opts...)
+}
+
+func ForceFlush(ctx context.Context) error {
+	if global_tracer_provider == nil {
+		return nil
+	}
+	return global_tracer_provider.ForceFlush(ctx)
 }
