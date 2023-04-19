@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	otlp "github.com/bluexlab/otlp-util-go"
@@ -27,6 +28,9 @@ func main() {
 		otlp.WithEndPoint("localhost:4317"),
 		otlp.WithServiceName("otlp_util_example"),
 		otlp.WithInSecure(),
+		otlp.WithErrorHandler(func(err error) {
+			fmt.Println(err.Error())
+		}),
 	)
 
 	ctx := context.Background()

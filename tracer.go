@@ -19,6 +19,7 @@ type config struct {
 	serviceName  string
 	endPoint     string
 	grpcInSecure bool
+	errorHandler otel.ErrorHandlerFunc
 }
 
 func InitGlobalTracer(opts ...InitOption) {
@@ -62,6 +63,10 @@ func InitGlobalTracer(opts ...InitOption) {
 	global_tracer = tracer
 
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
+	if cfg.errorHandler != nil {
+		otel.SetErrorHandler(cfg.errorHandler)
+	}
 }
 
 func WithServiceName(name string) InitOption {
@@ -79,6 +84,12 @@ func WithEndPoint(endPoint string) InitOption {
 func WithInSecure() InitOption {
 	return func(c *config) {
 		c.grpcInSecure = true
+	}
+}
+
+func WithErrorHandler(handler otel.ErrorHandlerFunc) InitOption {
+	return func(c *config) {
+		c.errorHandler = handler
 	}
 }
 
