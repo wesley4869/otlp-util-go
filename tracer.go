@@ -1,105 +1,37 @@
-package otlp_util
+package otlp
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
-type InitOption func(*config)
-
-type config struct {
-	serviceName  string
-	endPoint     string
-	grpcInSecure bool
-	errorHandler otel.ErrorHandlerFunc
-}
-
-func InitGlobalTracer(opts ...InitOption) {
-	cfg := config{}
-	for _, opt := range opts {
-		opt(&cfg)
+// InitGlobalTracer initializes the global tracer.
+func InitGlobalTracer(opts ...InitOption) (*sdktrace.TracerProvider, error) {
+	opt := option{ctx: context.Background()}
+	for _, o := range opts {
+		o(&opt)
 	}
-	r, err := resource.New(
-		context.Background(),
-		resource.WithAttributes(semconv.ServiceNameKey.String(cfg.serviceName)),
-	)
+	if opt.Validate() != nil {
+		return nil, fmt.Errorf("validate option. %w", opt.Validate())
+	}
+
+	// Set error handler
+	if opt.errorHandler != nil {
+		otel.SetErrorHandler(opt.errorHandler)
+	}
+
+	provider, err := newTraceProvider(opt.ctx, opt.serviceName, opt.endpoint)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("create trace provider. %w", err)
 	}
-
-	options := make([]otlptracegrpc.Option, 0, 8)
-	options = append(options, otlptracegrpc.WithEndpoint(cfg.endPoint))
-	if cfg.grpcInSecure {
-		options = append(options, otlptracegrpc.WithInsecure())
-	}
-
-	client := otlptracegrpc.NewClient(options...)
-
-	exporter, err := otlptrace.New(context.Background(), client)
-	if err != nil {
-		panic(err)
-	}
-
-	sp := sdktrace.NewBatchSpanProcessor(
-		exporter,
-	)
-
-	provider := sdktrace.NewTracerProvider(
-		sdktrace.WithResource(r),
-		sdktrace.WithSpanProcessor(sp),
-	)
-	global_tracer_provider = provider
-
-	otel.SetTracerProvider(global_tracer_provider)
-	tracer := otel.GetTracerProvider().Tracer(cfg.serviceName)
-	global_tracer = tracer
-
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-
-	if cfg.errorHandler != nil {
-		otel.SetErrorHandler(cfg.errorHandler)
-	}
+	return provider, nil
 }
 
-func WithServiceName(name string) InitOption {
-	return func(c *config) {
-		c.serviceName = name
-	}
-}
-
-func WithEndPoint(endPoint string) InitOption {
-	return func(c *config) {
-		c.endPoint = endPoint
-	}
-}
-
-func WithInSecure() InitOption {
-	return func(c *config) {
-		c.grpcInSecure = true
-	}
-}
-
-func WithErrorHandler(handler otel.ErrorHandlerFunc) InitOption {
-	return func(c *config) {
-		c.errorHandler = handler
-	}
-}
-
+// Start starts a new span.
 func Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	return global_tracer.Start(ctx, spanName, opts...)
-}
-
-func ForceFlush(ctx context.Context) error {
-	if global_tracer_provider == nil {
-		return nil
-	}
-	return global_tracer_provider.ForceFlush(ctx)
+	return globalTracer.Start(ctx, spanName, opts...)
 }
