@@ -77,10 +77,6 @@ func InitExporter(opts ...InitOption) (ShutdownHandler, error) {
 func getResource(ctx context.Context, serviceName string) (*resource.Resource, error) {
 	return resource.New(
 		ctx,
-		resource.WithHost(),
-		resource.WithHostID(),
-		resource.WithContainer(),
-		resource.WithContainerID(),
 		resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)),
 	)
 }
